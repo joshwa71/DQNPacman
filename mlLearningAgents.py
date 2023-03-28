@@ -68,9 +68,9 @@ class GameStateFeatures:
 class QLearnAgent(Agent):
 
     def __init__(self,
-                 alpha: float = 0.2,
+                 alpha: float = 0.1,
                  epsilon: float = 0.05,
-                 gamma: float = 0.9,
+                 gamma: float = 0.8,
                  maxAttempts: int = 30,
                  numTraining: int = 10):
         """
@@ -100,6 +100,8 @@ class QLearnAgent(Agent):
         self.wonGames = 0
         self.initialNumPellets = 0
         self.onePelletCollections = 0
+        self.old_state = None
+        self.old_action = None
 
     def registerInitialState(self, state: GameState):
         self.initialNumPellets = state.getNumFood()
@@ -144,7 +146,7 @@ class QLearnAgent(Agent):
             The reward assigned for the given trajectory
         """
         # "*** YOUR CODE HERE ***"
-        # surrounded = False
+        surrounded = False
         pacman = endState.getPacmanPosition()
         # if endState.hasWall(pacman[0] + 1, pacman[1]) and endState.hasWall(pacman[0] - 1, pacman[1]) and endState.hasWall(pacman[0], pacman[1] + 1):
         #     surrounded = True
@@ -164,29 +166,16 @@ class QLearnAgent(Agent):
         old_food = startState.getNumFood()
         new_food = endState.getNumFood()
 
-        # if surrounded and new_food == 1:
-        #     print('surrounded')
-        #     reward -= 500
-
-        if old_food - new_food > 0:
-            reward += 50
+        if surrounded and new_food == 1:
+            print('surrounded')
+            reward -= 5
+        # if old_food - new_food > 0:
+        #     reward += 5
         for ghost in ghosts:
             if ghost == pacman:
-                reward -= 100
+                reward -= 5
 
         return reward
-    
-    def surrounded(self, state: GameState):
-        pacman = state.getPacmanPosition()
-        if state.hasWall(pacman[0] + 1) and state.hasWall(pacman[0] - 1) and state.hasWall(pacman[1] + 1):
-            return True
-        if state.hasWall(pacman[0] + 1) and state.hasWall(pacman[0] - 1) and state.hasWall(pacman[1] - 1):
-            return True
-        if state.hasWall(pacman[1] + 1) and state.hasWall(pacman[1] - 1) and state.hasWall(pacman[0] + 1):
-            return True
-        if state.hasWall(pacman[1] + 1) and state.hasWall(pacman[1] - 1) and state.hasWall(pacman[0] - 1):
-            return True
-        
         
 
     # WARNING: You will be tested on the functionality of this method
@@ -347,6 +336,10 @@ class QLearnAgent(Agent):
         reward = self.computeReward(state, nextState)
         self.learn(stateFeatures, action, reward, nextStateFeatures)
         self.updateCount(stateFeatures, action)
+        self._old_state = state
+        self.old_state = stateFeatures
+        self.old_action = action
+
         return action
 
     def final(self, state: GameState):
@@ -371,6 +364,13 @@ class QLearnAgent(Agent):
         if pellets_eaten == 1:
             self.onePelletCollections += 1
         print(f"Episode {episode}: Score = {score}, pellets eaten: {pellets_eaten}")
+
+        reward =  state.getScore() - self._old_state.getScore()
+
+        if state.isWin():
+            self.learn(self.old_state, self.old_action, reward, GameStateFeatures(state))
+        else:
+            self.learn(self.old_state, self.old_action, reward, GameStateFeatures(state))
 
         self.incrementEpisodesSoFar()
         if self.getEpisodesSoFar() == self.getNumTraining():
