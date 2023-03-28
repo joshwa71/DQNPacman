@@ -26,11 +26,11 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 import random
+import math
 
 from pacman import Directions, GameState
 from pacman_utils.game import Agent
 from pacman_utils import util
-import numpy as np
 
 
 class GameStateFeatures:
@@ -47,93 +47,24 @@ class GameStateFeatures:
         Args:
             state: A given game state object
         """
-        self.features = []
-        self.width = state.getFood().width
-        self.height = state.getFood().height
-        
-        # Extract features from the state
-        self.features.extend(self.oneHotFoodVector(state))
-        self.features.extend(self.oneHotGhostVector(state.getGhostPositions()))
-        self.features.extend(self.oneHotPacmanVector(state.getPacmanPosition()))
-        
-    def oneHotFoodVector(self, state: GameState):
-        food = []
-        for i in state.getFood():
-            for j in i:
-                if j:
-                    food.append(1)
-                else:
-                    food.append(0)
-        return food
 
-    def oneHotPacmanVector(self, position):
-        feature = [0] * self.width * self.height
-        index = position[0] * self.width + position[1]
-        feature[int(index)] = 1
-        return feature
-    
-    def oneHotGhostVector(self, positions):
-        feature = [0] * self.width * self.height
-        for position in positions:
-            index = position[0] * self.width + position[1]
-            feature[int(index)] = 1
-        return feature
-    
+        "*** YOUR CODE HERE ***"
+        self.pacmanPosition = state.getPacmanPosition()
+        self.ghostPositions = state.getGhostPositions()
+        self.food = state.getFood()
+        self.score = state.getScore()
 
-class DQN:
-    def __init__(self, input_size: int, output_size: int, learning_rate: float = 0.01, discount_factor: float = 0.99):
-        self.input_size = input_size
-        self.output_size = output_size
-        self.learning_rate = learning_rate
-        self.discount_factor = discount_factor
-        
-        # Initialize weights
-        self.W1 = np.random.randn(input_size, 128) / np.sqrt(input_size)
-        self.b1 = np.zeros((1, 128))
-        self.W2 = np.random.randn(128, output_size) / np.sqrt(128)
-        self.b2 = np.zeros((1, output_size))
-        self.a1 = None
-    
-    def forward(self, state):
-        """
-        Performs a forward pass through the network and returns the Q-values
-        for each action given the current state
+    def __hash__(self):
+        return hash((self.pacmanPosition, tuple(self.ghostPositions), self.food))
 
-        """
-        #print(state)
-        z1 = np.dot(state, self.W1) + self.b1
-        self.a1 = np.tanh(z1)
-        z2 = np.dot(self.a1, self.W2) + self.b2
-        return z2[0]
-    
-    def backward(self, state, action_idx, reward, next_state):
-        q_values = self.forward(state)
-        next_q_values = self.forward(next_state)
+    def __eq__(self, other):
+        if not isinstance(other, GameStateFeatures):
+            return False
+        return self.pacmanPosition == other.pacmanPosition and \
+               self.ghostPositions == other.ghostPositions and \
+               self.food == other.food
 
-        # Target Q-value
-        target = reward + self.discount_factor * np.max(next_q_values)
 
-        # Compute the loss
-        loss = 0.5 * (target - q_values[action_idx]) ** 2
-
-        # Compute gradients
-        delta = np.zeros(self.output_size)
-        delta[action_idx] = q_values[action_idx] - target
-        dW2 = np.outer(self.a1, delta)
-        db2 = delta
-        da1 = np.dot(delta, self.W2.T)
-        dz1 = (1 - self.a1 ** 2) * da1
-        dW1 = np.outer(state, dz1)
-        db1 = dz1
-
-        # Update weights
-        self.W1 -= self.learning_rate * dW1
-        self.b1 -= self.learning_rate * db1
-        self.W2 -= self.learning_rate * dW2
-        self.b2 -= self.learning_rate * db2
-
-        return loss
-    
 class QLearnAgent(Agent):
 
     def __init__(self,
@@ -164,12 +95,14 @@ class QLearnAgent(Agent):
         self.numTraining = int(numTraining)
         # Count the number of games we have played
         self.episodesSoFar = 0
-        self.QNet = DQN(147, 5)
+        self.qTable = util.Counter()
+        self.countsTable = util.Counter()
+        self.wonGames = 0
+        self.initialNumPellets = 0
+        self.onePelletCollections = 0
 
-        #self.transitions = {}
-        self.lastState = None
-        self.lastAction = None
-        self.lastScore = 0
+    def registerInitialState(self, state: GameState):
+        self.initialNumPellets = state.getNumFood()
 
     # Accessor functions for the variable episodesSoFar controlling learning
     def incrementEpisodesSoFar(self):
@@ -197,6 +130,8 @@ class QLearnAgent(Agent):
     def getMaxAttempts(self) -> int:
         return self.maxAttempts
 
+    # WARNING: You will be tested on the functionality of this method
+    # DO NOT change the function signature
     @staticmethod
     def computeReward(startState: GameState,
                       endState: GameState) -> float:
@@ -209,8 +144,10 @@ class QLearnAgent(Agent):
             The reward assigned for the given trajectory
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        return endState.getScore() - startState.getScore()
 
+    # WARNING: You will be tested on the functionality of this method
+    # DO NOT change the function signature
     def getQValue(self,
                   state: GameStateFeatures,
                   action: Directions) -> float:
@@ -223,8 +160,10 @@ class QLearnAgent(Agent):
             Q(state, action)
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        return self.qTable[(state, action)]
 
+    # WARNING: You will be tested on the functionality of this method
+    # DO NOT change the function signature
     def maxQValue(self, state: GameStateFeatures) -> float:
         """
         Args:
@@ -234,8 +173,12 @@ class QLearnAgent(Agent):
             q_value: the maximum estimated Q-value attainable from the state
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        legalActions = [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]
+        q_values = [self.getQValue(state, action) for action in legalActions]
+        return max(q_values)
 
+    # WARNING: You will be tested on the functionality of this method
+    # DO NOT change the function signature
     def learn(self,
               state: GameStateFeatures,
               action: Directions,
@@ -251,10 +194,12 @@ class QLearnAgent(Agent):
             reward: the reward received on this trajectory
         """
         "*** YOUR CODE HERE ***"
-        print("learn")
-        loss = self.QNet.backward(state, action, reward, nextState, 0)
-        util.raiseNotDefined()
+        q_value = self.getQValue(state, action)
+        max_q_value_next = self.maxQValue(nextState)
+        self.qTable[(state, action)] = q_value + self.alpha * (reward + self.gamma * max_q_value_next - q_value)
 
+    # WARNING: You will be tested on the functionality of this method
+    # DO NOT change the function signature
     def updateCount(self,
                     state: GameStateFeatures,
                     action: Directions):
@@ -266,8 +211,10 @@ class QLearnAgent(Agent):
             action: Action taken
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        self.countsTable[(state, action)] += 1
 
+    # WARNING: You will be tested on the functionality of this method
+    # DO NOT change the function signature
     def getCount(self,
                  state: GameStateFeatures,
                  action: Directions) -> int:
@@ -280,8 +227,10 @@ class QLearnAgent(Agent):
             Number of times that the action has been taken in a given state
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        return self.countsTable[(state, action)]
 
+    # WARNING: You will be tested on the functionality of this method
+    # DO NOT change the function signature
     def explorationFn(self,
                       utility: float,
                       counts: int) -> float:
@@ -299,48 +248,18 @@ class QLearnAgent(Agent):
             The exploration value
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
 
-    def actionToOneHot(self, action: Directions) -> np.ndarray:
-        oneHot = np.zeros(5)
-        if action == Directions.NORTH:
-            oneHot[0] = int(1)
-        elif action == Directions.SOUTH:
-            oneHot[1] = int(1)
-        elif action == Directions.EAST:
-            oneHot[2] = int(1)
-        elif action == Directions.WEST:
-            oneHot[3] = int(1)
-        elif action == Directions.STOP:
-            oneHot[4] = int(1)
-        return oneHot
-    
-    def legalToOneHot(self, actions: Directions) -> np.ndarray:
-        oneHot = np.zeros(5)
-        if Directions.NORTH in actions:
-            oneHot[0] = int(1)
-        if Directions.SOUTH in actions:
-            oneHot[1] = int(1)   
-        if Directions.EAST in actions:
-            oneHot[2] = int(1)
-        if Directions.WEST in actions:
-            oneHot[3] = int(1)
-        if Directions.STOP in actions:
-            oneHot[4] = int(1)
-        return oneHot
-    
-    def oneHotToAction(self, oneHot: np.ndarray) -> Directions:
-        if oneHot[0] == 1:
-            return Directions.NORTH
-        elif oneHot[1] == 1:
-            return Directions.SOUTH
-        elif oneHot[2] == 1:
-            return Directions.EAST
-        elif oneHot[3] == 1:
-            return Directions.WEST
-        elif oneHot[4] == 1:
-            return Directions.STOP
+        # Variant of the epsilon-greedy exploration strategy, exploration bonus is inversely proportional to number of times a given action has been taken in the given state,
+        # WIN RATE: 0.71
+        return utility + self.epsilon / (1 + counts)
 
+        # Exploration fn based on UCB, exploration bonus decays with square root of ratio between the log of episodesSoFar and the number
+        # of times the action has been taken in the given state i.e. counts
+        # WIN RATE: 0.68
+        # return utility + self.epsilon * math.sqrt(2 * math.log(self.getEpisodesSoFar() + 1) / (counts + 1))
+
+    # WARNING: You will be tested on the functionality of this method
+    # DO NOT change the function signature
     def getAction(self, state: GameState) -> Directions:
         """
         Choose an action to take to maximise reward while
@@ -354,39 +273,37 @@ class QLearnAgent(Agent):
 
         Returns:
             The action to take
-
         """
-        new_score = state.getScore()
-        reward = new_score - self.lastScore
-        stateFeatures = GameStateFeatures(state).features
-
-        if self.lastState is not None:
-            self.lastAction = self.actionToOneHot(self.lastAction)
-            transition = {"last_state": self.lastState, "last_action": self.lastAction, "state": stateFeatures}
-            loss = self.QNet.backward(transition["last_state"], np.argmax(transition["last_action"]), reward, transition["state"])
-            
-        one_hot = np.zeros(5)
-        values = self.QNet.forward(stateFeatures)
-
+        # The data we have about the state of the game
         legal = state.getLegalPacmanActions()
-        legal_one_hot = self.legalToOneHot(legal)
-        for i in range(len(legal_one_hot)):
-            if legal_one_hot[i] == 0:
-                values[i] = -10000000
-            
-        values[4] = -10000000
-        q_max = np.argmax(values)
-        one_hot[q_max] = 1
+        if Directions.STOP in legal:
+            legal.remove(Directions.STOP)
 
-        if np.random.rand() < 0.1:
-            action = np.random.choice(legal)
+        # logging to help understand the inputs
+        # print("Legal moves: ", legal)
+        # print("Pacman position: ", state.getPacmanPosition())
+        # print("Ghost positions:", state.getGhostPositions())
+        # print("Food locations: ")
+        # print(state.getFood())
+        # print("Score: ", state.getScore())
+
+        stateFeatures = GameStateFeatures(state)
+
+        if util.flipCoin(self.epsilon):
+            return random.choice(legal)
         else:
-            action = self.oneHotToAction(one_hot)
+            q_values = [(self.getQValue(stateFeatures, action) +
+                         self.explorationFn(self.getQValue(stateFeatures, action),
+                                            self.getCount(stateFeatures, action)),
+                         action) for action in legal]
+            _, action = max(q_values)
 
-        self.lastAction = action
-        self.lastState = stateFeatures
-        self.lastScore = new_score
-
+            # Update the Q-table and counts after taking the action
+        nextState = state.generatePacmanSuccessor(action)
+        nextStateFeatures = GameStateFeatures(nextState)
+        reward = self.computeReward(state, nextState)
+        self.learn(stateFeatures, action, reward, nextStateFeatures)
+        self.updateCount(stateFeatures, action)
         return action
 
     def final(self, state: GameState):
@@ -397,18 +314,26 @@ class QLearnAgent(Agent):
         Args:
             state: the final game state
         """
+
+        # Keep track of the number of games played, and set learning
+        # parameters to zero when we are done with the pre-set number
+        # of training episodes
         print(f"Game {self.getEpisodesSoFar()} just ended!")
+        episode = self.getEpisodesSoFar()
+        score = state.getScore()
+        pellets_eaten = self.initialNumPellets - state.getNumFood()
+        # Track number of games won and the number of one pellet collections
+        if state.isWin():
+            self.wonGames += 1
+        if pellets_eaten == 1:
+            self.onePelletCollections += 1
+        print(f"Episode {episode}: Score = {score}, pellets eaten: {pellets_eaten}")
 
         self.incrementEpisodesSoFar()
         if self.getEpisodesSoFar() == self.getNumTraining():
             msg = 'Training Done (turning off epsilon and alpha)'
+            print(f"Number of won games: {self.wonGames}")
+            print(f"Number of one pellet collections {self.onePelletCollections}")
             print('%s\n%s' % (msg, '-' * len(msg)))
             self.setAlpha(0)
             self.setEpsilon(0)
-
-        last_action = self.actionToOneHot(self.lastAction)
-
-        if state.isLose():
-            self.QNet.backward(self.lastState, np.argmax(last_action), -100, GameStateFeatures(state).features)
-        else:
-            self.QNet.backward(self.lastState, np.argmax(last_action), 100, GameStateFeatures(state).features)
