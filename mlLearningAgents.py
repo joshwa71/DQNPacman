@@ -62,7 +62,7 @@ class GameStateFeatures:
             return False
         return self.pacmanPosition == other.pacmanPosition and \
                self.ghostPositions == other.ghostPositions and \
-               self.food == other.food
+               self.food == other.food 
 
 
 class QLearnAgent(Agent):
@@ -70,7 +70,7 @@ class QLearnAgent(Agent):
     def __init__(self,
                  alpha: float = 0.2,
                  epsilon: float = 0.05,
-                 gamma: float = 0.8,
+                 gamma: float = 0.9,
                  maxAttempts: int = 30,
                  numTraining: int = 10):
         """
@@ -143,8 +143,51 @@ class QLearnAgent(Agent):
         Returns:
             The reward assigned for the given trajectory
         """
-        "*** YOUR CODE HERE ***"
-        return endState.getScore() - startState.getScore()
+        # "*** YOUR CODE HERE ***"
+        # surrounded = False
+        pacman = endState.getPacmanPosition()
+        # if endState.hasWall(pacman[0] + 1, pacman[1]) and endState.hasWall(pacman[0] - 1, pacman[1]) and endState.hasWall(pacman[0], pacman[1] + 1):
+        #     surrounded = True
+        # if endState.hasWall(pacman[0] + 1, pacman[1]) and endState.hasWall(pacman[0] - 1, pacman[1]) and endState.hasWall(pacman[0], pacman[1] - 1):
+        #     surrounded = True
+        # if endState.hasWall(pacman[0], pacman[1] + 1) and endState.hasWall(pacman[0], pacman[1] - 1) and endState.hasWall(pacman[0] + 1, pacman[1]):
+        #     surrounded = True
+        # if endState.hasWall(pacman[0], pacman[1] + 1) and endState.hasWall(pacman[0], pacman[1] - 1) and endState.hasWall(pacman[0] - 1, pacman[1]):
+        #     surrounded = True
+
+
+        reward = endState.getScore() - startState.getScore()
+        ghosts = endState.getGhostPositions()
+        
+        pacman = [float(x) for x in pacman]
+        pacman = tuple(pacman)
+        old_food = startState.getNumFood()
+        new_food = endState.getNumFood()
+
+        # if surrounded and new_food == 1:
+        #     print('surrounded')
+        #     reward -= 500
+
+        if old_food - new_food > 0:
+            reward += 50
+        for ghost in ghosts:
+            if ghost == pacman:
+                reward -= 100
+
+        return reward
+    
+    def surrounded(self, state: GameState):
+        pacman = state.getPacmanPosition()
+        if state.hasWall(pacman[0] + 1) and state.hasWall(pacman[0] - 1) and state.hasWall(pacman[1] + 1):
+            return True
+        if state.hasWall(pacman[0] + 1) and state.hasWall(pacman[0] - 1) and state.hasWall(pacman[1] - 1):
+            return True
+        if state.hasWall(pacman[1] + 1) and state.hasWall(pacman[1] - 1) and state.hasWall(pacman[0] + 1):
+            return True
+        if state.hasWall(pacman[1] + 1) and state.hasWall(pacman[1] - 1) and state.hasWall(pacman[0] - 1):
+            return True
+        
+        
 
     # WARNING: You will be tested on the functionality of this method
     # DO NOT change the function signature
